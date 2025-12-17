@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import '../../services/database_service.dart';
+import '../../services/user_gate_service.dart';
 import '../../models/item_model.dart';
 import '../../theme/colors.dart';
 import 'report_lost_screen.dart';
 import 'report_found_screen.dart';
 import 'item_detail_screen.dart';
 import '../chat/chat_list_screen.dart';
+import '../profile/edit_profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -15,9 +17,9 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _selectedFilterIndex = 0; 
+  int _selectedFilterIndex = 0;
   final DatabaseService _dbService = DatabaseService();
-  final TextEditingController _searchController = TextEditingController(); // 1. Search Controller
+  final TextEditingController _searchController = TextEditingController();
   String _searchText = "";
 
   String get _currentFilter {
@@ -30,6 +32,45 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  // --- NEW HELPER: Show Dialog if Profile Incomplete ---
+  void _showIncompleteProfileDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Lengkapi Profil"),
+        content: const Text(
+          "Sebelum membuat laporan, nama, fakultas, dan prodi Anda harus lengkap.",
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Batal", style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.pumpkinOrange,
+            ),
+            onPressed: () {
+              Navigator.pop(context); // Close dialog
+              // Navigate to Edit Profile
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const EditProfileScreen(),
+                ),
+              );
+            },
+            child: const Text(
+              "Lengkapi Sekarang",
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -49,11 +90,14 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.chat_bubble_outline, color: AppColors.pumpkinOrange),
+            icon: const Icon(
+              Icons.chat_bubble_outline,
+              color: AppColors.pumpkinOrange,
+            ),
             onPressed: () {
               Navigator.push(
-                context, 
-                MaterialPageRoute(builder: (context) => const ChatListScreen())
+                context,
+                MaterialPageRoute(builder: (context) => const ChatListScreen()),
               );
             },
           ),
@@ -66,7 +110,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: Column(
         children: [
-          // 2. SEARCH BAR & BUTTONS CONTAINER
+          // SEARCH BAR & BUTTONS CONTAINER
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
@@ -88,23 +132,38 @@ class _HomeScreenState extends State<HomeScreen> {
                       borderRadius: BorderRadius.circular(16),
                       borderSide: BorderSide.none,
                     ),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+                    contentPadding: const EdgeInsets.symmetric(
+                      vertical: 0,
+                      horizontal: 16,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),
-                
+
                 // Action Buttons
                 Row(
                   children: [
-                    Expanded(child: _buildActionButton("Hilang", Icons.search_off, Colors.redAccent)),
+                    Expanded(
+                      child: _buildActionButton(
+                        "Hilang",
+                        Icons.search_off,
+                        Colors.redAccent,
+                      ),
+                    ),
                     const SizedBox(width: 16),
-                    Expanded(child: _buildActionButton("Ketemu", Icons.check_circle_outline, Colors.green)),
+                    Expanded(
+                      child: _buildActionButton(
+                        "Ketemu",
+                        Icons.check_circle_outline,
+                        Colors.green,
+                      ),
+                    ),
                   ],
                 ),
               ],
             ),
           ),
-          
+
           // --- List of Items ---
           Expanded(
             child: StreamBuilder<List<ItemModel>>(
@@ -117,17 +176,19 @@ class _HomeScreenState extends State<HomeScreen> {
                   return _buildEmptyState();
                 }
 
-                // 3. CLIENT-SIDE FILTERING LOGIC
-                // We take the full list from database, then filter it by text here
+                // Client-side filtering
                 final allItems = snapshot.data!;
                 final filteredItems = allItems.where((item) {
-                  return item.itemName.toLowerCase().contains(_searchText) || 
-                         item.location.toLowerCase().contains(_searchText);
+                  return item.itemName.toLowerCase().contains(_searchText) ||
+                      item.location.toLowerCase().contains(_searchText);
                 }).toList();
 
                 if (filteredItems.isEmpty) {
                   return Center(
-                    child: Text("Tidak ditemukan barang '$_searchText'", style: const TextStyle(color: Colors.grey)),
+                    child: Text(
+                      "Tidak ditemukan barang '$_searchText'",
+                      style: const TextStyle(color: Colors.grey),
+                    ),
                   );
                 }
 
@@ -193,19 +254,51 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // --- UPDATED ACTION BUTTON LOGIC ---
   Widget _buildActionButton(String label, IconData icon, Color color) {
     return ElevatedButton(
-      onPressed: () {
-         if (label == "Hilang") {
-            Navigator.push(context, MaterialPageRoute(builder: (context) => const ReportLostScreen()));
+      onPressed: () async {
+        // 1. Show Loading Indicator
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (c) => const Center(child: CircularProgressIndicator()),
+        );
+
+        // 2. Check Profile Completeness
+        bool canProceed = await UserGateService().isProfileComplete();
+
+        // 3. Remove Loading Indicator
+        if (mounted) Navigator.pop(context);
+
+        // 4. Handle Navigation based on result
+        if (canProceed) {
+          if (label == "Hilang") {
+            if (mounted)
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ReportLostScreen(),
+                ),
+              );
           } else if (label == "Ketemu") {
-            Navigator.push(context, MaterialPageRoute(builder: (context) => const ReportFoundScreen()));
+            if (mounted)
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ReportFoundScreen(),
+                ),
+              );
           }
+        } else {
+          // Profile incomplete -> Show warning
+          if (mounted) _showIncompleteProfileDialog(context);
+        }
       },
       style: ElevatedButton.styleFrom(
         backgroundColor: Colors.white,
         foregroundColor: color,
-        padding: const EdgeInsets.symmetric(vertical: 12), // Slightly smaller padding
+        padding: const EdgeInsets.symmetric(vertical: 12),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         elevation: 2,
         shadowColor: Colors.black12,
@@ -214,7 +307,10 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           Icon(icon, size: 24),
           const SizedBox(height: 4),
-          Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+          Text(
+            label,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+          ),
         ],
       ),
     );
@@ -222,14 +318,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildItemCard(ItemModel item) {
     final bool isLost = item.type == 'LOST';
-    
+
     return GestureDetector(
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (context) => ItemDetailScreen(item: item),
-          ),
+          MaterialPageRoute(builder: (context) => ItemDetailScreen(item: item)),
         );
       },
       child: Card(
@@ -254,33 +348,46 @@ class _HomeScreenState extends State<HomeScreen> {
                           item.imageUrl,
                           fit: BoxFit.cover,
                           errorBuilder: (context, error, stackTrace) {
-                             return Icon(isLost ? Icons.search : Icons.inventory_2, color: Colors.grey);
+                            return Icon(
+                              isLost ? Icons.search : Icons.inventory_2,
+                              color: Colors.grey,
+                            );
                           },
                           loadingBuilder: (context, child, loadingProgress) {
                             if (loadingProgress == null) return child;
                             return const Center(
                               child: SizedBox(
-                                width: 20, 
-                                height: 20, 
-                                child: CircularProgressIndicator(strokeWidth: 2)
-                              )
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
                             );
                           },
                         )
-                      : Icon(isLost ? Icons.search : Icons.inventory_2, color: Colors.grey),
+                      : Icon(
+                          isLost ? Icons.search : Icons.inventory_2,
+                          color: Colors.grey,
+                        ),
                 ),
               ),
               const SizedBox(width: 12),
-              
+
               // --- Details Text ---
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
-                        color: isLost ? Colors.red.withOpacity(0.1) : Colors.green.withOpacity(0.1),
+                        color: isLost
+                            ? Colors.red.withOpacity(0.1)
+                            : Colors.green.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
@@ -294,27 +401,33 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      item.itemName, 
+                      item.itemName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
                     ),
                     Text(
-                      item.location, 
+                      item.location,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: Colors.grey, fontSize: 12)
+                      style: const TextStyle(color: Colors.grey, fontSize: 12),
                     ),
                     const SizedBox(height: 8),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          "${item.date.day}/${item.date.month} • ${item.reporterName}", 
-                          style: const TextStyle(fontSize: 10, color: Colors.grey),
+                          "${item.date.day}/${item.date.month} • ${item.reporterName}",
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: Colors.grey,
+                          ),
                         ),
                       ],
-                    )
+                    ),
                   ],
                 ),
               ),
@@ -324,7 +437,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-  
+
   Widget _buildEmptyState() {
     return Center(
       child: Column(
@@ -332,7 +445,10 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           Icon(Icons.inbox, size: 60, color: Colors.grey.shade300),
           const SizedBox(height: 16),
-          Text("Belum ada laporan", style: TextStyle(color: Colors.grey.shade400)),
+          Text(
+            "Belum ada laporan",
+            style: TextStyle(color: Colors.grey.shade400),
+          ),
         ],
       ),
     );
