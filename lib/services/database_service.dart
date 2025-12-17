@@ -253,6 +253,7 @@ class DatabaseService {
     required String fullName,
     required String username,
     required String faculty,
+    required String studyProgram,
     File? imageFile, // NEW: Optional image file
   }) async {
     try {
@@ -283,6 +284,7 @@ class DatabaseService {
         'firstName': fullName,
         'username': username,
         'faculty': faculty,
+        'studyProgram' : studyProgram,
         'email': _auth.currentUser?.email,
         'lastUpdated': FieldValue.serverTimestamp(),
       };
