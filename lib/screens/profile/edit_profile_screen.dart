@@ -46,6 +46,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           _nameController.text = data['firstName'] ?? user!.displayName ?? '';
           _usernameController.text = data['username'] ?? '';
           _facultyController.text = data['faculty'] ?? '';
+          _studyProgramController.text = data['studyProgram'] ?? '';
         });
       }
     } catch (e) {
@@ -73,6 +74,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           fullName: _nameController.text.trim(),
           username: _usernameController.text.trim(),
           faculty: _facultyController.text.trim(),
+          studyProgram: _studyProgramController.text.trim(),
           imageFile: _selectedImage, // Pass the new image
         );
 
@@ -157,7 +159,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     const SizedBox(height: 16),
                     _buildTextField("Username", _usernameController, Icons.alternate_email),
                     const SizedBox(height: 16),
-                    _buildTextField("Fakultas / Jurusan", _facultyController, Icons.school),
+                    _buildTextField("Fakultas", _facultyController, Icons.school),
+                    const SizedBox(height: 16),
+                    _buildTextField("Jurusan", _studyProgramController, Icons.school),
                     
                     const SizedBox(height: 40),
 
