@@ -107,22 +107,19 @@ class DatabaseService {
   // ==========================================================
 
   // A. Create or Get a Chat Room ID
-  // We create a unique ID based on the Item + The Two Users
   String getChatRoomId(String itemId, String userA, String userB) {
-    // We sort the user IDs so the Chat Room ID is always the same 
-    // regardless of who started the chat (A talking to B = B talking to A)
     List<String> users = [userA, userB];
     users.sort(); 
     return "${itemId}_${users[0]}_${users[1]}";
   }
 
-  // B. Send Message (UPDATED to save Names and Item Info)
+  // B. Send Message
   Future<void> sendMessage(
     String chatRoomId, 
     String messageText, 
     String receiverId,
-    String receiverName, // NEW
-    String itemName      // NEW
+    String receiverName,
+    String itemName
   ) async {
     User? user = _auth.currentUser;
     if (user == null) return;
@@ -143,13 +140,13 @@ class DatabaseService {
         .collection('messages')
         .add(message.toMap());
         
-    // 2. Update Chat Summary with NAMES and ITEM INFO
+    // 2. Update Chat Summary
     await _db.collection('chats').doc(chatRoomId).set({
       'lastMessage': messageText,
       'lastUpdated': FieldValue.serverTimestamp(),
       'participants': [user.uid, receiverId],
-      'itemName': itemName, // Store the Item Name
-      'names': {            // Store both names map for easy lookup
+      'itemName': itemName,
+      'names': {
         user.uid: myName,
         receiverId: receiverName,
       }
@@ -157,13 +154,13 @@ class DatabaseService {
   }
 
 
-  // C. Stream Messages (Real-time!)
+  // C. Stream Messages
   Stream<List<MessageModel>> getMessages(String chatRoomId) {
     return _db
         .collection('chats')
         .doc(chatRoomId)
         .collection('messages')
-        .orderBy('timestamp', descending: true) // Newest at bottom (List view is reversed)
+        .orderBy('timestamp', descending: true)
         .snapshots()
         .map((snapshot) {
       return snapshot.docs.map((doc) {
@@ -172,7 +169,7 @@ class DatabaseService {
     });
   }
 
-  // D. Get User's Inbox (NEW)
+  // D. Get User's Inbox
   Stream<QuerySnapshot> getUserChats() {
     User? user = _auth.currentUser;
     if (user == null) return const Stream.empty();
@@ -190,11 +187,7 @@ class DatabaseService {
 
   // A. Delete an Item
   Future<void> deleteItem(String itemId) async {
-    // 1. Delete from Firestore
     await _db.collection('items').doc(itemId).delete();
-    
-    // Note: We leave the image in Supabase for now to keep it safe/simple.
-    // In a production app, you would delete the file from Supabase here too.
   }
 
   // B. Get ONLY My Items (For Profile)
@@ -204,8 +197,7 @@ class DatabaseService {
 
     return _db
         .collection('items')
-        .where('reporterId', isEqualTo: user.uid) // Only my items
-        // .orderBy('createdAt', descending: true)
+        .where('reporterId', isEqualTo: user.uid)
         .snapshots()
         .map((snapshot) {
       return snapshot.docs.map((doc) {
@@ -214,14 +206,39 @@ class DatabaseService {
     });
   }
 
-  // C. Finish/Complete an Item (Handover)
-  Future<void> finishItem(String itemId, File proofImage) async {
+  // C. NEW: Get User ID by Username (Used for Finish Report)
+  Future<String?> getUserIdByUsername(String username) async {
     try {
-      // 1. Upload Proof Image (Reuse the existing bucket 'images')
-      final fileName = 'proof_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final path = 'proofs/$fileName'; // Store in a subfolder 'proofs'
+      final snapshot = await _db
+          .collection('users')
+          .where('username', isEqualTo: username)
+          .limit(1)
+          .get();
 
-      await _supabase.storage.from('images').upload(
+      if (snapshot.docs.isNotEmpty) {
+        return snapshot.docs.first.id;
+      }
+      return null;
+    } catch (e) {
+      print("Error finding user: $e");
+      return null;
+    }
+  }
+
+  // D. Finish/Complete an Item (UPDATED: Now accepts completedByUid)
+  Future<void> finishItem({
+    required String itemId, 
+    required File proofImage,
+    required String completedByUid, // <--- NEW PARAMETER
+  }) async {
+    try {
+      // 1. Upload Proof Image
+      final fileName = 'proof_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final path = 'proofs/$fileName';
+
+      await _supabase.storage
+          .from('images')
+          .upload(
             path,
             proofImage,
             fileOptions: const sf.FileOptions(contentType: 'image/jpeg'),
@@ -230,22 +247,21 @@ class DatabaseService {
       final proofUrl = _supabase.storage.from('images').getPublicUrl(path);
 
       // 2. Update Firestore Document
-      // We don't delete it; we just change status to 'COMPLETED'
-      // This hides it from the Home Screen but keeps it for "Riwayat" (History)
       await _db.collection('items').doc(itemId).update({
         'status': 'COMPLETED',
         'proofImageUrl': proofUrl,
         'completedAt': FieldValue.serverTimestamp(),
+        'completedBy': completedByUid, // <--- SAVED HERE
       });
       
     } catch (e) {
       print("Error finishing item: $e");
-      throw e; // Rethrow to handle in UI
+      throw e;
     }
   }
 
   // ==========================================================
-  // 6. USER PROFILE FUNCTIONS (Upgraded)
+  // 6. USER PROFILE FUNCTIONS
   // ==========================================================
 
   Future<void> updateUserProfile({
@@ -254,7 +270,7 @@ class DatabaseService {
     required String username,
     required String faculty,
     required String studyProgram,
-    File? imageFile, // NEW: Optional image file
+    File? imageFile,
   }) async {
     try {
       String? profilePicUrl;
@@ -262,9 +278,11 @@ class DatabaseService {
       // 1. If user picked a new image, upload it to Supabase
       if (imageFile != null) {
         final fileName = 'profile_${uid}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-        final path = 'profiles/$fileName'; // Save in 'profiles' folder
+        final path = 'profiles/$fileName';
 
-        await _supabase.storage.from('images').upload(
+        await _supabase.storage
+            .from('images')
+            .upload(
               path,
               imageFile,
               fileOptions: const sf.FileOptions(contentType: 'image/jpeg'),
@@ -289,7 +307,6 @@ class DatabaseService {
         'lastUpdated': FieldValue.serverTimestamp(),
       };
 
-      // Only add profilePicUrl to Firestore if we actually changed it
       if (profilePicUrl != null) {
         data['profilePicUrl'] = profilePicUrl;
       }

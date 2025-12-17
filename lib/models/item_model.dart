@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ItemModel {
   final String id;
-  final String reporterId;
+  final String reporterId; // User's ID (formerly uid)
   final String reporterName;
   final String type; // 'LOST' or 'FOUND'
   final String itemName;
@@ -11,8 +11,11 @@ class ItemModel {
   final String note;
   final DateTime date;
   final String status; // 'OPEN' or 'COMPLETED'
-  // NEW FIELD
+  
+  // --- NEW FIELDS ---
   final String proofImageUrl; 
+  final String? completedBy; // UID of the person who finished it
+  final DateTime? completedAt; // Time it was finished
 
   ItemModel({
     required this.id,
@@ -25,8 +28,10 @@ class ItemModel {
     required this.note,
     required this.date,
     required this.status,
-    // NEW
     this.proofImageUrl = '', 
+    // New Optional Params
+    this.completedBy,
+    this.completedAt,
   });
 
   factory ItemModel.fromMap(Map<String, dynamic> data, String docId) {
@@ -39,12 +44,20 @@ class ItemModel {
       imageUrl: data['imageUrl'] ?? '',
       location: data['location'] ?? '',
       note: data['note'] ?? '',
+      status: data['status'] ?? 'OPEN',
+      proofImageUrl: data['proofImageUrl'] ?? '',
+      
+      // 1. Safe Date Conversion for Created Date
       date: (data['date'] is Timestamp) 
           ? (data['date'] as Timestamp).toDate() 
           : DateTime.tryParse(data['date'].toString()) ?? DateTime.now(),
-      status: data['status'] ?? 'OPEN',
-      // NEW: Read proof image
-      proofImageUrl: data['proofImageUrl'] ?? '', 
+
+      // 2. NEW: Safe Conversion for CompletedAt
+      // We check if it exists first to avoid "null is not subtype of Timestamp" error
+      completedBy: data['completedBy'],
+      completedAt: data['completedAt'] != null 
+          ? (data['completedAt'] as Timestamp).toDate() 
+          : null,
     );
   }
 
@@ -57,9 +70,13 @@ class ItemModel {
       'imageUrl': imageUrl,
       'location': location,
       'note': note,
-      'date': date,
       'status': status,
-      'proofImageUrl': proofImageUrl, // NEW
+      'proofImageUrl': proofImageUrl,
+      'completedBy': completedBy,
+      
+      // 3. Convert Dates back to Timestamp for Firestore
+      'date': Timestamp.fromDate(date),
+      'completedAt': completedAt != null ? Timestamp.fromDate(completedAt!) : null,
     };
   }
 }
