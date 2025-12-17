@@ -37,6 +37,7 @@ class UserProfileViewScreen extends StatelessWidget {
           final String fullName = data['firstName'] ?? userName;
           final String username = data['username'] ?? '-';
           final String faculty = data['faculty'] ?? '-';
+          final String studyProgram = data['studyProgram'] ?? '-';
           final String? profilePicUrl = data['profilePicUrl'];
 
           return SingleChildScrollView(
@@ -66,7 +67,9 @@ class UserProfileViewScreen extends StatelessWidget {
                 const SizedBox(height: 12),
                 _buildInfoCard(Icons.alternate_email, "Username", "@$username"),
                 const SizedBox(height: 12),
-                _buildInfoCard(Icons.school, "Fakultas / Jurusan", faculty),
+                _buildInfoCard(Icons.school, "Fakultas", faculty),
+                const SizedBox(height: 12),
+                _buildInfoCard(Icons.school, "Jurusan", studyProgram),
               ],
             ),
           );
