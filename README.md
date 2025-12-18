@@ -25,3 +25,7 @@ Berikut adalah fitur utama yang telah diimplementasikan sesuai dengan SRS:
 
 ### 💬 Komunikasi  
 * **In-App Chat**: Fitur chat *real-time* antara pemilik dan penemu barang untuk janjian bertemu.  
+
+SRS: https://docs.google.com/document/d/1TwB5AQRbwevBhUoSizZEOdIuJZFfMhZUVlZ_N9dFpdU/edit?usp=sharing
+
+Release APK: https://drive.google.com/drive/folders/1-jvEUZFg9ykb4MirdtbZ_YqVdegomayZ?usp=drive_link
